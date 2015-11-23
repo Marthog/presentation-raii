@@ -1,0 +1,497 @@
+\documentclass[xcolor=colortbl
+%,draft
+]{beamer}
+\mode<presentation>
+
+
+\usepackage{minitoc}
+\usepackage{listings}
+\usepackage{amsthm}
+\usepackage{tikz}
+
+% Load Theme
+\usetheme[slogan=false, navigation=true, frametotal=false, myriad=false]{UzL}
+
+\usetikzlibrary{graphs, graphdrawing, positioning}
+\usegdlibrary{layered}
+\usegdlibrary{force}
+
+\title{Memory Models}
+\author{Gunnar Bergmann}
+\date{30. November 2015}
+
+\begin{document}
+\maketitle
+
+\begin{frame}{Table of contents}
+    \tableofcontents
+\end{frame}
+
+\section{Manual memory management}
+
+\begin{frame}{Manual memory management}
+    Problems caused by manual memory management:
+    \begin{itemize}
+        \item Memory leaks
+        \item use after free
+        \item double delete
+        \item repeated resource release on all paths
+        \item separation of allocation and release
+        \item exceptions only with finally
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Garbage Collection}
+    \begin{itemize}
+        \item memory overhead
+        \item unpredictable collection cycle
+        \item restricted to memory:
+        \begin{itemize}
+            \item no deterministic destruction order
+            \item no immediate destruction
+        \end{itemize}
+    \end{itemize}
+    
+    $\implies$ Not always useful
+\end{frame}
+
+
+\begin{frame}{Local variables}
+   \begin{itemize}
+       \item memory automatically reclaimed after end of scope
+       \item stack allocated
+       \item returned by copying the value
+       \item pointers become invalid after end of scope
+    \end{itemize}
+\end{frame}
+
+
+\section{RAII}
+
+\begin{frame}{RAII}
+    \begin{itemize}
+        \item C++ added object oriented programming to C
+        \item Classes contain constructor and destructor
+        \item Constructor allocates resource
+        \item Destructor frees resource
+        \item Resource Acquisition Is Initialization
+    \end{itemize}
+\end{frame}
+
+
+\begin{frame}[fragile, shrink]
+\begin{lstlisting}[language=c++,frame=single]
+class String {
+private:
+    char* data; // pointer to a character
+public:
+    // Constructor
+    String(const char* s) {
+        data = new char[strlen(s)+1];
+        strcpy(data, s);
+    }
+    
+    // disable copying
+    String(const String&) = delete;
+    
+    // Destructor
+    ~String() {
+        delete[] data;
+    }
+};
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]
+    Add the a member function for appending strings:
+\begin{lstlisting}[language=c++, frame=single]
+concat(const char* s) {
+    char* old = data;
+    int len = strlen(old)+strlen(s)+1;
+    data = new char[len]; // more memory
+    strcpy(data, old);
+    strcat(data, s);
+    delete[] old;    // free old memory
+}
+\end{lstlisting}
+
+\end{frame}
+
+
+
+\begin{frame}[fragile]
+    \begin{itemize}
+        \item Automatic destruction at end of lifetime
+        \item Destructors of members and base classes are automatically called
+            $ \implies $ simple composition of classes
+        \item Immediate destructor call (unlike finalizer)
+        \item Allows other resources than memory:
+        \begin{lstlisting}[language=c++, frame=single]
+{
+    lock_guard<mutex> guard(some_mutex);
+    // ... code inside the mutex
+} // some_mutex automatically unlocked
+        \end{lstlisting}
+    \end{itemize}
+\end{frame}
+
+
+
+\begin{frame}{Destruction Order}
+    \begin{itemize}
+        \item Destroy local variables at end of scope
+        \item First run code of the destructor
+        \item Automatically destroy members and base classes
+        \item Reverse of construction order
+        \item
+        \emph{Stack unwind} on raised exception: Go back the call stack and destroy all objects.
+    \end{itemize}
+    
+\end{frame}
+
+
+\begin{frame}
+    Already solved problems:
+    \begin{itemize}
+        \item Memory leaks
+        \item use after free
+        \item double delete
+        \item repeated resource release on all paths
+        \item separation of allocation and release
+        \item exceptions only with finally
+    \end{itemize}
+    
+    Remaining and new problems:
+    \begin{itemize}
+        \item Use after free
+        \item Strict hierarchies required; no cyclic references
+    \end{itemize}
+\end{frame}
+
+
+
+\begin{frame}
+    \frametitle{Containers}
+    \begin{itemize}
+        \item can store multiple objects of the same type
+        \item use RAII to call all destructors
+        \item can move objects internally
+        \\ $\implies$ can cause dangling references / iterators
+    \end{itemize} 
+\end{frame}
+
+\section{Smart Pointers}
+
+\begin{frame}{Smart Pointers}
+    \begin{definition}[Owning pointer]
+        Pointer that may need to free its memory.
+    \end{definition}
+    \begin{definition}[Raw pointer]
+        Pointer like in C, for example \emph{int*}.
+    \end{definition}
+    \begin{definition}[Smart pointer]
+        Pointer-like object that manages its own memory.
+    \end{definition}
+\end{frame}
+
+\begin{frame}
+    \frametitle{Unique Pointer}
+    
+    
+    \begin{itemize}
+        \item unique ownership
+        \item hold a reference
+        \item automatically deallocate it
+    \end{itemize}
+\end{frame}
+
+\begin{frame}
+    \frametitle{Shared Pointer}
+  
+    \begin{itemize}
+        \item shared ownership
+        \item uses reference counting
+        \item increases counter in copy operation
+        \item decreases counter in destructor and maybe destroys object
+        \item reference cycles can cause leaks
+    \end{itemize}
+\end{frame}
+
+\begin{frame}
+    \frametitle{Weak Pointer}
+    
+    \begin{itemize}
+        \item no ownership, pointer can dangle
+        \item can be upgraded to a shared pointer
+        \item used to break reference cycles
+    \end{itemize}
+\end{frame}
+
+
+\begin{frame}
+    \begin{tikzpicture}[baseline=15]
+    \tikz[scale=2] \graph [layered layout] {
+        Root -> [dotted]
+        Object 1 [draw, rectangle]
+        -> [bend right] Object 2 [draw, rectangle];
+        
+        Object 2 -> [bend right] Object 1;
+        
+        {[same layer] Object 1, Object 2};
+    };
+    \end{tikzpicture}
+\end{frame}
+
+
+\begin{frame}
+    \begin{tikzpicture}[baseline=15]
+    \tikz[scale=2] \graph [layered layout] {
+        Root -> [dotted]
+        Object 1 [draw, rectangle]
+        -> [bend right] Object 2 [draw, rectangle];
+        
+        Object 2 -> [bend right, dashed] Object 1;
+        
+        {[same layer] Object 1, Object 2};
+    };
+    \end{tikzpicture}
+\end{frame}
+
+\begin{frame}
+    \frametitle{RAII in garbage collected languages}
+    \begin{itemize}
+        \item traditionally gc'ed languages use finally
+        \item finally is more verbose than RAII and can be forgotten easily
+        \item D uses garbage collector for memory and RAII for other resources
+        \item Some languages allow similar behavior
+    \end{itemize}
+\end{frame}
+
+
+\begin{frame}[fragile]
+    \frametitle{RAII in garbage collected languages}
+    For example Python:
+    \begin{lstlisting}[language=python,frame=single]
+with open("test.file") as f:
+    content = f.read()
+    \end{lstlisting}
+\end{frame}
+
+\section{Rust's Ownership}
+
+\begin{frame}
+    \frametitle{Rust}
+    
+    Rust aims at memory safety, abstractions without overhead and multithreading.
+    
+    \begin{itemize}
+        \item detect problems at compile time
+        \item no dangling references        
+        \item thread safety
+        \item no overhead
+    \end{itemize}
+    It uses ownership, borrowing and lifetimes.
+\end{frame}
+
+
+\begin{frame}
+    \frametitle{Ownership}
+    
+    \begin{itemize}
+        \item only a single variable can access a value
+        \item ownership can be transferred to another variable, e.g. inside a function
+        \item can not use a variable after move
+        \item some exceptions when transferring and copying is equal
+    \end{itemize}
+\end{frame}
+
+
+\begin{frame}[fragile]
+    \frametitle{Ownership}
+    \begin{lstlisting}[frame=single]
+    let a = vec![1, 2, 3];
+    let b = a;
+    
+    // does not work
+    a.push(4); // append 4
+    \end{lstlisting}
+\end{frame}
+
+
+\begin{frame}
+    \frametitle{Borrowing}
+    
+    \begin{itemize}
+        \item temporarily borrow instead of transferring ownership
+        \item like references
+        \item move borrowed value is forbidden (no dangling references)
+        \item similar to read-write-lock
+        \item just one reference can mutate the variable \\
+            $ \implies $ no dangling iterators
+    \end{itemize}
+\end{frame}
+
+
+\begin{frame}[fragile]
+    \frametitle{Borrowing}
+
+\begin{lstlisting}[frame=single]
+fn foo() -> &i32 {
+    let a = 12;
+    return &a;
+}
+\end{lstlisting}
+
+\begin{lstlisting}[frame=single]
+let x = vec![1,2,3];
+let reference = &mut x;
+println!("{}", x);
+\end{lstlisting}
+
+Borrowing is not threadsafe but can be used for it:
+\begin{lstlisting}[frame=single]
+{
+    let guard = mutex.lock().unwrap();
+    modify_value(&mut guard);
+}
+\end{lstlisting}
+
+\end{frame}
+
+
+
+
+\begin{frame}
+    \frametitle{Lifetimes}
+    
+    \begin{itemize}
+        \item mechanism for implementing ownership and borrowing
+        \item every type has a lifetime
+        \item can not take a reference with a larger lifetimes
+        \item object can not be moved while a reference exists
+        \item often they can be automatically generated
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Lifetimes}
+\begin{lstlisting}[frame=single]
+struct Foo {
+    x: i32,
+}
+
+// the lifetime 'a is a generic parameter
+// it returns a reference with the same 
+// livetime as the input
+fn first_x<'a>(first: &'a Foo, second: &Foo)
+     -> &'a i32 {
+    &first.x
+}
+\end{lstlisting}
+\end{frame}
+
+
+\begin{frame}
+    \frametitle{Anonymous functions}
+    
+    \begin{itemize}
+        \item lambda functions
+        \item can access local variable
+        \item use ownership model for checks
+        \item simplest type borrows environment
+        \\ $\implies$ can not be returned
+        \item second type takes ownership
+        \\ $\implies$ variables can not be used from outside
+    \end{itemize}
+\end{frame}
+
+\begin{frame}
+    \frametitle{Anonymous functions}
+    Some can be called only once.
+    
+    \begin{itemize}
+        \item ownership is transferred into the called functions
+        \item destroyed at end of call
+        \item function can consume data
+        \item same concept available for methods
+    \end{itemize}
+\end{frame}
+
+
+\begin{frame}
+    \frametitle{Anonymous functions in C++}    
+    \begin{itemize}
+        \item no checks by the compiler
+        \item individual capture per value
+        \item allows more complex expressions to be captured (C++14)
+        \item more flexibility, less safety
+        \item no self consuming functions in C++
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile, shrink]
+    \frametitle{Anonymous functions}
+\begin{lstlisting}[frame=single]
+let f = move || {
+    // ...
+};
+\end{lstlisting}
+
+\begin{lstlisting}[frame=single]
+fn do_something(self) {
+// ...
+} // self is destroyed
+\end{lstlisting}
+
+\begin{lstlisting}[language=c++, frame=single]
+[ x,  // by value
+&r, // by reference
+p = make_unique<int>(0)
+// generalized capture
+] (auto parameter1) {
+// the code in the function
+}
+\end{lstlisting}
+\end{frame}
+
+
+\begin{frame}
+    \frametitle{Ownership in C++}    
+    \begin{itemize}
+        \item ownership was already used for reasoning about code
+        \item just the checks are new
+        \item At CppCon 2015 a tool for checks similar to Rusts' was announced.
+    \end{itemize}
+\end{frame}
+
+
+\section{Conclusion}
+
+
+\begin{frame}
+    \frametitle{Conclusion}
+    RAII:
+    \begin{itemize}
+        \item deterministic destruction order
+        \item safe building blocks for resource handling
+        \item good program structure
+        \item dangling references
+        \item manually break cyclic references
+        \item not always possible
+        \item need to choose adequate type
+    \end{itemize}
+\end{frame}
+
+\begin{frame}
+    \frametitle{Conclusion}
+    Ownership:
+    \begin{itemize}
+        \item improves safety
+        \item safe building blocks for resource handling
+        \item good program structure
+        \item manually break cyclic references
+        \item not always possible
+    \end{itemize}
+\end{frame}
+
+\end{document}

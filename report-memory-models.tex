@@ -20,7 +20,7 @@
 \begin{abstract}
 Resource handling is an important aspect of programming languages and related errors are still a common problem in today's software. Managing it manually is hard and error prone, so safer alternatives are required. Garbage collection protects against most problems with memory handling but is not usable in programs with strict memory and time constraints nor can it handle other type of resources.
 
-This paper presents alternatives to manual resource management that are safer to use but do not impose severe performance degradation. At first it explores the concept of RAII and show how it can be implemented, how typical classes look and then presents and solves limitations of RAII. Afterwards Rust's ownership model will be explored. It helps preventing typical security issues currently present in C++ by applying additional checks at compile time.
+This paper presents alternatives to manual resource management that are safer to use but do not impose severe performance degradation. First it explores the concept of RAII and shows how it can be implemented, how typical classes look and then presents and solves limitations of RAII. Afterwards Rust's ownership model will be explored. It helps preventing typical security issues currently present in C++ by applying additional checks at compile time.
 
 \end{abstract}
 
@@ -36,29 +36,27 @@ This leads to many problems:
     \item repeated code because the memory needs to be released on every code path. As usual copied code often leads to other problems, especially when it is changed later.
     \item unreadable code when many nested \emph{if}-statements are used to prevent repeated code.
     \item separation of allocation and release
-    \item Exceptions are nearly impossible to implement because they skip the code necessary for releasing.
+    \item Adding exceptions is problematic because there needs to be a finalizer for every .
 \end{itemize}
 
-Detecting and debugging memory related errors is hard. Leaked memory accumulates slowly and needs a certain amount before causing problems. \emph{Use after free} and \emph{double delete} lead to \emph{undefined behavior}. It is possible that everything works as expected and just under rare circumstances cause crashes or security issues. There are programs for the detection of potential errors but they are rarely used and can not detect all issues while often alerting false positives.
+Detecting and debugging memory related errors is hard. Leaked memory accumulates slowly and needs a certain amount before causing problems. In C \emph{Use after free} and \emph{double delete} lead to \emph{undefined behavior}. It is possible that everything works as expected and just under rare circumstances cause crashes or security issues. There are programs for the detection of potential errors but they are rarely used and can not detect all issues.
 
-Garbage collection solves memory management by tracing references and detecting which objects can be safely removed. It works under the assumption that there is enough memory until the next collection cycle. It is not usable in software with strict memory constraints and the unpredictable frequency of collection cycles limits the benefit for software with real time requirements.
+Garbage collection solves memory management by tracing references and detecting which objects can be safely removed. It is not usable in software with strict memory constraints and the unpredictable frequency of collection cycles limits the benefit for software with real time requirements.
 Garbage collectors also can not handle other resources than memory because these are often unique, lack additional reserves and require a deterministic order of resource release.
 
 
 Except for \emph{use after free} all these problems can be solved by different classes using RAII \cite{stroustrupFoundationsCpp}. Still \emph{use after free} remains an important issue that causes lots of problems that the ownership model introduced with Rust \cite{RustBook} solves.
  
- The alternatives presented by this note will also be able to create file handles or network sockets, that automatically close, as well as mutex locks that can unlock when no longer needed \cite{stroustrupFoundationsCpp}.
+The alternatives presented by this paper will also be able to create file handles or network sockets, that automatically close, as well as mutex locks that can unlock when no longer needed \cite{stroustrupFoundationsCpp}.
 
 
 \section{Local variables}
-The easiest form of automated memory management are local variables. Local variables can not outlive their scope and the memory is automatically reclaimed by the program \cite{cpp14std}. They can be returned from functions by copying their values but pointers to the variables become invalid. It is easy for compilers to save them on the stack or hold them in registers, making local variables the fastest form of memory allocation, because deallocation takes places by decreasing the stack size at the end of each function and the locality of reference avoids cache misses. It is not possible to increase the capacity of stack allocated memory once it is no longer on the top of the stack and a stack allocated variable can not outlive it's function call.
-
-The values of local variables can be returned from a function by copying the memory into a specific register or dedicated memory location but the variable itself is no longer valid, so keeping references to it is harmful.
+The easiest form of automated memory management are local variables. Local variables can not outlive their scope and the memory is automatically reclaimed by the program \cite{cpp14std}. They can be returned from functions by copying their values but pointers to the variables become invalid. It is easy for compilers to save them on the stack or hold them in registers, making local variables the fastest form of memory allocation, because deallocation takes places by decreasing the stack size at the end of each function and the locality of reference avoids cache misses. It is not possible to increase the capacity of stack allocated memory once it is no longer on the top of the stack and a stack allocated variable can not outlive the function call.
 
 These limits make exclusive local variable impractical for most cases.
 
 \section{RAII}
-When C++ added object oriented programming to C it also provided a way to encapsulate initialization and release of member variables. Classes provide a better encapsulation of their data and thus may have a \emph{constructor} for the initialization and a \emph{destructor} for the resource release. \cite{stroustrupFoundationsCpp}
+When C++ added object oriented programming to C, it also provided a way to encapsulate initialization and release of member variables. Classes provide a better encapsulation of their data and thus may have a \emph{constructor} for the initialization and a \emph{destructor} for the resource release. \cite{stroustrupFoundationsCpp}
 
 \pagebreak
 
@@ -84,11 +82,11 @@ public:
 };
 \end{lstlisting}
 
-This concept is known by the name \emph{Resource Acquisition Is Initialization} abbreviated as \emph{RAII}, because the resource used by the object is allocated on it's construction.
+This concept is known by the name \emph{Resource Acquisition Is Initialization} abbreviated as \emph{RAII}, because the resource used by the object is allocated on its construction.
 
-Instances of these classes can act as an extension of the normal local variables. They can also be stack allocated but unlike the primitive ones their destructor is run at the end of the scope.
+Instances of these classes can act as an extension of normal local variables. They can also be stack-allocated but unlike the primitive ones their destructor is run at the end of the scope.
 
-This string class from above can be simply extended to allow dynamically growing strings. It just needs to allocate a new chunk of memory and copy the old data and the extension into a single array.
+The string class from above can be simply extended to allow dynamically growing strings. It just needs to allocate a new chunk of memory and copy the old data and the extension into a single array.
 
 \begin{lstlisting}[language=c++, frame=single]
 concat(const char* s) {
@@ -118,21 +116,21 @@ RAII can be used for many types of resources. Some examples from C++ are the cla
 
 \subsection{Destruction order}
 
-An object is destroyed at the end of it's lifetime, which can be automatically done for temporary objects and local ones when they leave the scope, in many languages visible as the closing brace \verb|}|.
+An object is destroyed at the end of its lifetime, which can be automatically done for temporary objects and local ones when they leave the scope, in many languages visible as the closing brace \verb|}|.
 
-Member variables are destroyed by their parents destructor from the last to the first and afterwards the base classes' destructors are called if existent \cite{cpp14std}.
+Member variables are destroyed by their parent's destructor from the last to the first and afterwards the base classes' destructors are called if existent \cite{cpp14std}.
 
 In all the automatic destructor calls the variables are destructed in reverse of their creation order and independent from the code path \cite{cpp14std}. RAII's destruction order is deterministic. The reverse order ensures that no object is destroyed while others depending on it are still alive.
 
-There are additional ways of creating and destroying objects manually, which is needed for implementing some basic types that itself use RAII but need to manage their internal memory manually. Forsimplified example the C++ type \verb|vector| allocates a chunk of raw memory and constructs the objects internally. When elements are removed or the \verb|vector| is destroyed, then all of the elements destructors are called before the object itself gets destroyed. You rarely have to do the management yourself unless you need some specialized and efficient datastructures that are not part of the standard library.
+There are additional ways of creating and destroying objects manually, which is needed for implementing some basic types that itself use RAII but need to manage their internal memory manually. For a simplified example the C++ type \verb|vector| allocates a chunk of raw memory and constructs the objects internally. When elements are removed or the \verb|vector| is destroyed, then all of the elements destructors are called before the object itself gets destroyed. You rarely have to do the management yourself unless you need some specialized and efficient datastructures that are not part of the standard library.
 
 
-When an exception is thrown the runtime library performs \emph{stack unwinding} by going back all function calls and destroying every object until the according catch-statement has been reached. Destructors should not throw exceptions because throwing in a stack rewind would lead to two simultaneous active exception which most languages can not handle and immediately abort. \cite{cpp14std}
+When an exception is thrown, the runtime library performs \emph{stack unwinding} by going back all function calls and destroying every object until the according catch-statement has been reached. Destructors should not throw exceptions because throwing in a stack rewind would lead to two simultaneous active exception which most languages can not handle and immediately abort. \cite{cpp14std}
 
 \subsection{Solved Problems}
 Under the assumption that the implementation of classes is correct, RAII solves some of the problems of manual memory management.
 RAII improves the code structure by reducing code duplication. It pulls both acquisition and release from the code using it into one class, that keeps the related code close together. By removing the need for calling \verb|new| and \verb|delete| outside of the class it solves \emph{double deletes} and memory leaks. It does not solve \emph{use after free} because there may still be references to memory after the owning object has released it.
-Also data structures require strict hierarchies so that there is a order for the destructors. Any cases of cyclic references are not possible although the section about \emph{smart pointers} shows ways to relax these constraint.
+Also data structures require strict hierarchies so that there is a order for the destructors. Cyclic references are not possible although the section about \emph{smart pointers} shows ways to relax these constraint.
 
 
 \subsection{Containers}
@@ -141,35 +139,34 @@ The most important building block for programs are \emph{containers} \cite{strou
 Some operations can remove, add or internally move elements, causing pointers to individual elements or \emph{iterators} to dangle. In modern C++ this is a common error because it is often not visible from the outside that elements may move and under which circumstances, although some containers guarantee stable references.
 
 
-\subsection{smart pointer}
-Unlike using objects directly, a pointer can be moved but the memory it refers to is not invalidated, so all other pointers remain valid. We use the term \emph{owning pointers} to refer to those types of pointers that needs to free the memory on release. Later we will explore the ownership in the Rust programming language that uses the same concept in a way the compiler can verify to prevent common sources of errors.
+\subsection{Smart Pointer}
+Unlike using objects directly, a pointer can be moved but the memory it refers to is not invalidated, so all other pointers remain valid. We use the term \emph{owning pointers} to refer to those types of pointers that need to free the memory on release. Later we will explore the ownership in the Rust programming language that uses the same concept in a way the compiler can verify to prevent common sources of errors.
 
-Additionally to \verb|owning pointers| there are other types of pointers that just refer to a memory location without ever acquiring or freeing the memory themselves. The pointers present in C are called \emph{raw pointers} here.
+In addition to \verb|owning pointers| there are other types of pointers that just refer to a memory location without ever acquiring or freeing the memory themselves. The pointers present in C are called \emph{raw pointers} here.
 
-Since raw pointer need to call the appropriate function to release the memory it is safer to provide a wrapper class that uses RAII to release the memory automatically. These are called smart pointers. As a general rule owning raw pointers should be avoided and either replaced by using the object without indirection or with a smart pointer. There are typically three types of smart pointers \cite{meyers2014effective}:
+Since raw pointers need to call the appropriate function to release the memory, it is safer to provide a wrapper class that uses RAII to release the memory automatically. These are called smart pointers. As a general rule owning raw pointers should be avoided and either replaced by using the object without indirection or with a smart pointer. There are typically three types of smart pointers \cite{meyers2014effective}:
 
 \begin{itemize}
 \item
 \verb|unique_ptr| (C++), \verb|Box| (Rust) is the most simple type. It holds a reference and frees the memory on deletion. It can not be copied. It models exclusive ownership \cite{meyers2014effective}.
 
 \item
-\verb|shared_ptr| (C++), \verb|Rc| (Rust) provides shared ownership. It lets multiple smart pointers refer to the same memory location. When the last one is destroyed it frees up the memory. \verb|shared_ptr| is implemented with reference counting. When creating a new object it allocates additional space for another integer and stores a counter there. When a \verb|shared_ptr| is copied it increases the counter and the destructor decreases it. When the counter drops to zero the inner object is destroyed. This smart pointer allows multiple references but the programmer needs to be careful to not create a cyclic dependency because that prevents the counter from reaching zero and may leak the whole cycle \cite{meyers2014effective}.
+\verb|shared_ptr| (C++), \verb|Rc| (Rust) provides shared ownership. It lets multiple smart pointers refer to the same memory location. When the last one is destroyed it frees up the memory. \verb|shared_ptr| is implemented with reference counting. When creating a new object it allocates additional space for another integer and stores a counter there. When a \verb|shared_ptr| is copied, it increases the counter and the destructor decreases it. When the counter drops to zero the inner object is destroyed. This smart pointer allows multiple references but the programmer needs to be careful to not create a cyclic dependency because that prevents the counter from reaching zero and may leak the whole cycle \cite{meyers2014effective}.
 
-\item \verb|weak_ptr|(C++), \verb|Weak| (Rust) refers to an object managed by shared pointers but allows the pointer to dangle. It does not own the resource nor can be used directly but can grant temporary ownership by beeing upgraded to a \verb|shared_ptr|, which may fail. Already freed objects are although that fails if the object has already been destroyed. The weak pointer can be used to break cycles \cite{meyers2014effective}.
+\item \verb|weak_ptr|(C++), \verb|Weak| (Rust) refers to an object managed by shared pointers. It allows the pointer to dangle but that can be safely detected. It does not own the resource nor can be used directly but can grant temporary ownership by beeing upgraded to a \verb|shared_ptr|, which may fail if no associated object exists. The weak pointer can be used to break cycles \cite{meyers2014effective}.
 
-For example in a tree structure each node has a list of shared pointers to child nodes and a weak pointer to it's parent. It forms a hierarchy because when the last reference to the root node is dropped the whole tree will recursively be released. It is still possible for a node to safely access it's parent.
+For example in a tree structure each node has a list of shared pointers to child nodes and a weak pointer to its parent. It forms a hierarchy because when the last reference to the root node is dropped the whole tree will recursively be released. It is still possible for a node to safely access its parent.
 
-Weak pointers are implemented by adding another counter to the one used by \emph{shared pointer}. When the reference counter drops to zero the object is destroyed but the memory not released, so that the second counter still remains valid. The memory is released on destruction of the last \emph{weak pointer} \cite{meyers2014effective}.
+Weak pointers are implemented by adding another counter to the one used by \emph{shared pointer}. When the reference counter drops to zero the object is destroyed. The counter object is released on destruction of the last \emph{weak pointer} \cite{meyers2014effective}.
 \end{itemize}
-
 
 Both containers and smart pointers store memory but they are used differently. Containers organize multiple objects of the same type, whereas smart pointers contain a single element, but vary in the access to it, and when inheritance is used, they allow downcasting to a base class.
 
 
 \section{RAII in garbage collected languages}
-A garbage collector is an easily usable protection against memory related issues but lacks support of other resources. Classes often have \emph{finalizers} that can close leaked resources but many of them including file handles and network sockets need to be closed as soon as possible so that other programs can use them. Often the release order matters or it takes an unpredictable time span to the next collection cycle so it sometimes takes too long and may cause nearly undetectable errors. Relying on \emph{finalizers} therefore is strongly discouraged.
+A garbage collector is an easily usable protection against memory-related issues but lacks support of other resources. Classes often have \emph{finalizers} that can close leaked resources but many of them, including file handles and network sockets, need to be closed as soon as possible so that other programs can use them. Often the release order matters or it takes an unpredictable time span to the next collection cycle so it sometimes takes too long and may cause nearly undetectable errors. Relying on \emph{finalizers} therefore is strongly discouraged.
 
-Traditionally garbage collected languages use \verb|finally| to run specific code for resource release at the end of the scope, although that requires the discipline to surround every resource usage with a finally block and as a consequence is rarely used. Also resource handling occures more othen than defining a class containing a closable resource, so RAII reduces code duplication in comparison to \verb|finally| \cite{isoCppFAQ}.
+Traditionally garbage collected languages use \verb|finally| to run specific code for resource release at the end of the scope, although that requires the discipline to surround every resource usage with a finally block and as a consequence is rarely used. Also resource handling occures more often than defining a class containing a closable resource, so RAII reduces code duplication in comparison to \verb|finally| \cite{isoCppFAQ}.
 
 Some languages like \emph{D} support a garbage collector for memory and RAII for other resources \cite{DLangProgramming}. Other languages were extended with special keywords that enable RAII-like behavior. For example \emph{Python 2.5} \cite{pythonDoc} introduced the methods \verb|__enter__| and \verb|__exit__| that can be used with the new keyword \verb|with| to support automatic closing of objects:
 \begin{lstlisting}[language=python,frame=single]
@@ -195,7 +192,7 @@ Ownership means that there is always a single variable that can access the value
 The strict semantics of ownership ensure that RAII is used correctly and that no variable can be shared across threads.
 
 Variables have ownership over the resources they access.
-You can create an heap-allocated array with three elements with
+You can create a heap-allocated array with three elements with
 \begin{lstlisting}
 let a = vec![1, 2, 3];
 \end{lstlisting}
@@ -213,7 +210,7 @@ will not compile because the content of \verb|a| has been moved to \verb|b| and 
 
 When multiple control paths exist and a value has been moved in one, it is no longer accessible afterwards until a new value has been assigned. Functions can take a value by move, which makes the code more efficient than copying values and also prevents accidental modifications.
 
-Some primitive types are an exception from the ownership rule and are copied instead of moved, because move and copy are equal for them.
+Some types are an exception from the ownership rule and are copied instead of moved, because move and copy are equal for them.
 
 
 \subsection{Borrowing}
@@ -240,7 +237,7 @@ println!("{}", x);
 \end{lstlisting}
 will not compile because x can not be used by the print function while there is still a mutable reference to it.
 
-This is not an actual lock and does not make the types thread-safe. Sending a reference to another thread is not allowed. It just prevents creation of dangling references. Still the same mechanism is also used for thread-safety to prevent unlocking a mutex while still holding a reference to it's content:
+This is not an actual lock and does not make the types thread-safe. Sending a reference to another thread is not allowed. It just prevents creation of dangling references. Still the same mechanism is also used for thread-safety to prevent unlocking a mutex while still holding a reference to its content:
 
 \begin{lstlisting}[frame=single]
 {
@@ -252,7 +249,7 @@ This is not an actual lock and does not make the types thread-safe. Sending a re
 
 \subsection{Lifetimes}
 The compiler enforces and validates the borrowing and ownership rules with lifetimes. These are bound to the scope and every type has an implicit lifetime on it. \cite{RustBook}
-References are represented by a leading single quote: \verb|'lifetime|
+References are represented by a leading single quote: \verb|'lifetime|.
 There is a special lifetime \verb|'static| for items that life as long as the process exists.
 
 \begin{lstlisting}[frame=single]
@@ -275,11 +272,11 @@ In this example the parameter \verb|first| and the returned reference are annote
 Although the compiler generates and checks the lifetime for every object, they can be automatically generated based on the context except for some ambiguous cases.
 
 \subsection{Anonymous functions}
-Like most modern languages rust supports the creation of anonymous functions, also called lambda functions. These are created locally and can access the local variables. To obey the safety rules without introducing additional overhead there are three basic types of anonymous functions.
+Like most modern languages Rust supports the creation of anonymous functions, also called lambda functions. These are created locally and can access the local variables. To obey the safety rules without introducing additional overhead there are three basic types of anonymous functions.
 
-The simplest type accesses the local variables by reference. It can not be returned from the function because then references could no longer access the data.
+The simplest type accesses the local variables by reference. Explained in the terms of ownership it borrows its environment. It can not be returned from the function because then references could no longer access the data.
 
-The second type takes the variables by move and forbids the access after the function definition. For taking copies of the value first store a copy and then use the copy inside of the function.
+The second type takes the variables by move and forbids the access after the function definition, which means it takes the ownership of the variables. For taking copies of the value first store a copy and then use the copy inside of the function.
 
 The last type can be called only once. This allows the function to consume the inner data instead of leaving it in a valid state. To build similar behaviors for own types these can take the \verb|self|-reference by move. \verb|self| accesses the object on which the method is called, similar to the \verb|this| by other types. Rust's ownership ensures that the object is moved inside a method and then destroyed at the end of the call. \cite{RustBook}
 \begin{lstlisting}[frame=single]
@@ -288,8 +285,23 @@ fn do_something(self) {
 } // self is destroyed
 \end{lstlisting}
 
+
+C++ in comparison lets the programmer decide for each value. There are two default capture modes which take all variable by value or by reference. There are also individual choices for each variable. The C++14 standard also added \emph{generalized captures} that can bind any expression to a name. \cite{meyers2014effective}
+\begin{lstlisting}[language=c++, frame=single]
+[ x,  // by value
+  &r, // by reference
+  p = make_unique<int>(0)
+      // generalized capture
+] (auto parameter1) {
+    // the code in the function
+}
+\end{lstlisting}
+There is no mode that supports moving values inside a function but generalized capture can be used for that.
+
+The C++ lambdas are more flexible, but also more dangerous because no checks occur. Accidentally using the wrong capture mode, especially when the default ones are used, can easily lead to dangling references. They are also more verbose and you can not build the self-destructing ones.
+
 \subsection{Limits of ownership}
-It is not possible to protect against all kinds of bugs even with the strict ownership rules. Especially the value inside of a shared smart pointer has an unpredictable lifetime. While it can be guaranteed that the value has at least the pointers lifetime, aliasing mutable references can not be prevented. There are some types in Rusts standard library that allow safe access e.g. by falling back to runtime checks.
+It is not possible to protect against all kinds of bugs even with the strict ownership rules. Especially the value inside of a shared smart pointer has an unpredictable lifetime. While it can be guaranteed that the value has at least the pointers lifetime, aliasing mutable references are needed for many programs. There are some types in Rusts standard library that allow safe access e.g. by falling back to runtime checks.
 
 
 \subsection{Ownership in C++}
@@ -302,18 +314,20 @@ At CppCon 2015 a new programming guide and a tool, that can check for rules simi
 
 This paper has shown how RAII can create a safer and simpler alternative to manual memory management and how some internally unsafe classes can provide useful building blocks for creating quite safe programs. Afterwards it has presented the ownership concept of Rust that prevents common problems of RAII.
 
-In comparison to garbage collection RAII can not handle cyclic references. The programmer always needs to use an adequate container or smart pointer, structure the code and break cyclic references manually. On the other side this forces a good structure for the program and allows a deterministic and immediate destruction which enables the use of RAII for other types of resources. 
+In comparison to garbage collection RAII can not handle cyclic references. The programmer always needs to use an adequate container or smart pointer, structure the code and break cyclic references manually. On the other hand this forces a good structure for the program and allows a deterministic and immediate destruction which enables the use of RAII for other types of resources. 
 
 Whereas garbage collection is a general solution for all kinds of memory related issues, RAII is one for all kinds of resources except those ordered in cyclic dependencies.
 
 Ownership can eliminate many issues at compile time and provides a fine grained control over the destruction of objects.
 Other languages have to detect problems at runtime or don't protect against them at all. This does not just prevent some sources of memory issues but also other classes of problems that need to by found by extensive testing otherwise.
 
-On the downside it is a lot to write. Simply passing a reference around is not possible because you need to ensure that no invalidated variable can be used and sometimes extra lifetime annotations are required so that the borrow checker can verify the code. Even when you sacrifice performance and make extensive use of copying objects or just use reference counting, there is still a lot work involved in manually creating copies every time and you loose the ability to use mutable objects, which need other verbose workarounds.
+On the other hand it is a lot to write. Simply passing a reference around is not possible because you need to ensure that no invalidated variable can be used and sometimes extra lifetime annotations are required so that the borrow checker can verify the code. Even when you sacrifice performance and make extensive use of copying objects or just use reference counting, there is still a lot work involved in manually creating copies every time and you loose the ability to use mutable objects, which need other verbose workarounds.
+
+It remains open if the compile time checks and improved code structure will benefit the creation of large scale and reliable software or if the amount of work and the costs are too high for productive software development.
 
 
 \bibliographystyle{plain}
-\bibliography{report0}{}
+\bibliography{report-memory-models}{}
 
 
 
