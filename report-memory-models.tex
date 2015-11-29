@@ -36,7 +36,7 @@ This leads to many problems:
     \item repeated code because the memory needs to be released on every code path. As usual copied code often leads to other problems, especially when it is changed later.
     \item unreadable code when many nested \emph{if}-statements are used to prevent repeated code.
     \item separation of allocation and release
-    \item Adding exceptions is problematic because there needs to be a finalizer for every .
+    \item Adding exceptions is problematic because there needs to be a finalizer for every allocation.
 \end{itemize}
 
 Detecting and debugging memory related errors is hard. Leaked memory accumulates slowly and needs a certain amount before causing problems. In C \emph{Use after free} and \emph{double delete} lead to \emph{undefined behavior}. It is possible that everything works as expected and just under rare circumstances cause crashes or security issues. There are programs for the detection of potential errors but they are rarely used and can not detect all issues.

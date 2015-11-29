@@ -70,11 +70,10 @@
 
 \begin{frame}{RAII}
     \begin{itemize}
-        \item C++ added object oriented programming to C
         \item Classes contain constructor and destructor
         \item Constructor allocates resource
         \item Destructor frees resource
-        \item Resource Acquisition Is Initialization
+        \item \emph{Resource Acquisition Is Initialization}
     \end{itemize}
 \end{frame}
 
@@ -103,7 +102,7 @@ public:
 \end{frame}
 
 \begin{frame}[fragile]
-    Add the a member function for appending strings:
+    Add a member function for appending strings:
 \begin{lstlisting}[language=c++, frame=single]
 concat(const char* s) {
     char* old = data;
@@ -122,9 +121,9 @@ concat(const char* s) {
 \begin{frame}[fragile]
     \begin{itemize}
         \item Automatic destruction at end of lifetime
-        \item Destructors of members and base classes are automatically called
+        \item Destructors of members and base classes automatically called
             $ \implies $ simple composition of classes
-        \item Immediate destructor call (unlike finalizer)
+        \item Immediate destructor call
         \item Allows other resources than memory:
         \begin{lstlisting}[language=c++, frame=single]
 {
@@ -141,10 +140,10 @@ concat(const char* s) {
     \begin{itemize}
         \item Destroy local variables at end of scope
         \item First run code of the destructor
-        \item Automatically destroy members and base classes
+        \\then destroy members and base classes
         \item Reverse of construction order
         \item
-        \emph{Stack unwind} on raised exception: Go back the call stack and destroy all objects.
+        \emph{Stack unwind} on raised exception: \\ Go back the call stack and destroy all objects.
     \end{itemize}
     
 \end{frame}
@@ -154,7 +153,6 @@ concat(const char* s) {
     Already solved problems:
     \begin{itemize}
         \item Memory leaks
-        \item use after free
         \item double delete
         \item repeated resource release on all paths
         \item separation of allocation and release
@@ -194,8 +192,11 @@ concat(const char* s) {
     \end{definition}
 \end{frame}
 
-\begin{frame}
+\begin{frame}[fragile]
     \frametitle{Unique Pointer}
+    C++: \verb|unique_ptr| 
+    
+    Rust: \verb|Box|
     
     
     \begin{itemize}
@@ -205,8 +206,11 @@ concat(const char* s) {
     \end{itemize}
 \end{frame}
 
-\begin{frame}
+\begin{frame}[fragile]
     \frametitle{Shared Pointer}
+    C++: \verb|shared_ptr| 
+    
+    Rust: \verb|Rc|
   
     \begin{itemize}
         \item shared ownership
@@ -217,8 +221,11 @@ concat(const char* s) {
     \end{itemize}
 \end{frame}
 
-\begin{frame}
+\begin{frame}[fragile]
     \frametitle{Weak Pointer}
+    C++: \verb|weak_ptr| 
+    
+    Rust: \verb|Weak|
     
     \begin{itemize}
         \item no ownership, pointer can dangle
@@ -229,11 +236,12 @@ concat(const char* s) {
 
 
 \begin{frame}
+    \frametitle{without weak pointer}
     \begin{tikzpicture}[baseline=15]
     \tikz[scale=2] \graph [layered layout] {
         Root -> [dotted]
-        Object 1 [draw, rectangle]
-        -> [bend right] Object 2 [draw, rectangle];
+        Object 1 [draw, rectangle] 
+        ->[bend right] Object 2 [draw, rectangle];
         
         Object 2 -> [bend right] Object 1;
         
@@ -244,6 +252,7 @@ concat(const char* s) {
 
 
 \begin{frame}
+    \frametitle{with weak pointer}
     \begin{tikzpicture}[baseline=15]
     \tikz[scale=2] \graph [layered layout] {
         Root -> [dotted]
@@ -263,7 +272,7 @@ concat(const char* s) {
         \item traditionally gc'ed languages use finally
         \item finally is more verbose than RAII and can be forgotten easily
         \item D uses garbage collector for memory and RAII for other resources
-        \item Some languages allow similar behavior
+        \item Some languages RAII-like similar behavior
     \end{itemize}
 \end{frame}
 
@@ -332,7 +341,7 @@ with open("test.file") as f:
 \end{frame}
 
 
-\begin{frame}[fragile]
+\begin{frame}[fragile, shrink]
     \frametitle{Borrowing}
 
 \begin{lstlisting}[frame=single]
@@ -393,6 +402,7 @@ fn first_x<'a>(first: &'a Foo, second: &Foo)
 
 \begin{frame}
     \frametitle{Anonymous functions}
+    \hfill \hyperlink{skippedLambda}{\beamergotobutton{skip}}
     
     \begin{itemize}
         \item lambda functions
@@ -445,17 +455,16 @@ fn do_something(self) {
 
 \begin{lstlisting}[language=c++, frame=single]
 [ x,  // by value
-&r, // by reference
-p = make_unique<int>(0)
-// generalized capture
+  &r, // by reference
+  p = make_unique<int>(0)
+      // generalized capture
 ] (auto parameter1) {
-// the code in the function
+    // the code in the function
 }
 \end{lstlisting}
 \end{frame}
 
-
-\begin{frame}
+\begin{frame}[label=skippedLambda]
     \frametitle{Ownership in C++}    
     \begin{itemize}
         \item ownership was already used for reasoning about code
@@ -472,26 +481,30 @@ p = make_unique<int>(0)
     \frametitle{Conclusion}
     RAII:
     \begin{itemize}
-        \item deterministic destruction order
         \item safe building blocks for resource handling
         \item good program structure
         \item dangling references
-        \item manually break cyclic references
-        \item not always possible
+        \item manually break cyclic references (not always possible)
         \item need to choose adequate type
     \end{itemize}
+    RAII is general solution for resources without cycles \\ $\iff$ \\GC is general solution for memory handling
 \end{frame}
 
 \begin{frame}
     \frametitle{Conclusion}
+    
     Ownership:
     \begin{itemize}
+        \item prevents dangling references
         \item improves safety
-        \item safe building blocks for resource handling
-        \item good program structure
-        \item manually break cyclic references
-        \item not always possible
+        \item does not solve all issues
+        \item requires lots of annotations
     \end{itemize}
+\end{frame}
+
+\begin{frame}        
+        \Huge{Thank you for listening. \\
+            Questions?}
 \end{frame}
 
 \end{document}
